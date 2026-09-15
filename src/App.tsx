@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useAuth } from "./auth";
 
 // ─── Tax Database ────────────────────────────────────────────────────────────
 
@@ -241,6 +242,7 @@ const STEPS = [
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function App() {
+  const { user, signOut } = useAuth();
   const [step, setStep] = useState(0);
   const [search, setSearch] = useState("");
   const printRef = useRef<HTMLDivElement>(null);
@@ -403,8 +405,19 @@ export default function App() {
                 PERHITUNGAN PAJAK BOGA GROUP
               </div>
             </div>
-            <div style={{ marginLeft: "auto", color: "#fff", opacity: 0.7, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
-              Mengetahui Nominal PPh<br />Pembayaran ke Vendor
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ color: "#fff", opacity: 0.85, fontSize: 11, textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>
+                {user?.email || "Pengguna"}<br />
+                Mengetahui Nominal PPh Pembayaran ke Vendor
+              </div>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                className="no-print"
+                style={{ padding: "8px 12px", borderRadius: 7, border: "1px solid rgba(255,255,255,.45)", background: "rgba(0,0,0,.12)", color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
