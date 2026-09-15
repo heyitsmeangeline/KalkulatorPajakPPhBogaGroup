@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import bogaLogo from "./assets/logo-boga.png";
 
 export interface AuthUser {
   id: string;
@@ -280,13 +281,10 @@ function AuthScreen() {
     <AuthShell>
       <div style={{ width: "100%", maxWidth: 430 }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ display: "inline-flex", background: "#fff", borderRadius: 8, padding: "8px 12px", flexDirection: "column", gap: 2, boxShadow: "0 2px 10px rgba(0,0,0,.08)" }}>
-            <div style={{ width: 34, height: 16, background: "#c8102e", borderRadius: 2 }} />
-            <div style={{ width: 34, height: 16, background: "#fff", border: "1px solid #ddd", borderRadius: 2 }} />
-          </div>
-          <div style={{ color: "#fff", fontSize: 11, fontWeight: 800, letterSpacing: ".12em", marginTop: 12 }}>KALKULATOR PAJAK</div>
-          <h1 style={{ color: "#fff", fontSize: 25, lineHeight: 1.15, margin: "5px 0 0", fontWeight: 900 }}>PERHITUNGAN PAJAK BOGA GROUP</h1>
-          <p style={{ color: "rgba(255,255,255,.78)", fontSize: 13, margin: "8px 0 0" }}>Login diperlukan sebelum menggunakan kalkulator.</p>
+          <img src={bogaLogo} alt="Boga Group" style={{ width: 92, height: "auto", display: "block", margin: "0 auto 14px", objectFit: "contain" }} />
+          <div style={{ color: "#c8102e", fontSize: 11, fontWeight: 800, letterSpacing: ".12em", marginTop: 4 }}>KALKULATOR PAJAK</div>
+          <h1 style={{ color: "#202020", fontSize: 25, lineHeight: 1.15, margin: "5px 0 0", fontWeight: 900 }}>PERHITUNGAN PAJAK BOGA GROUP</h1>
+          <p style={{ color: "#666", fontSize: 13, margin: "8px 0 0" }}>Login diperlukan sebelum menggunakan kalkulator.</p>
         </div>
 
         <div style={{ background: "#fff", borderRadius: 12, border: "2px solid #e0e0e0", padding: 24, boxShadow: "0 12px 35px rgba(0,0,0,.12)" }}>
@@ -343,7 +341,7 @@ function Field({ label, type = "text", value, onChange, placeholder, autoComplet
 
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: "100vh", background: "#c8102e", padding: "40px 20px", display: "flex", justifyContent: "center", alignItems: "center", fontFamily: "'Nunito', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #fff 0%, #fff7f8 55%, #fdebed 100%)", padding: "40px 20px", display: "flex", justifyContent: "center", alignItems: "center", fontFamily: "'Nunito', sans-serif" }}>
       {children}
     </div>
   );

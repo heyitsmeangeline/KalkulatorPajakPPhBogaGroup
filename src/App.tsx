@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useAuth } from "./auth";
+import bogaLogo from "./assets/logo-boga.png";
 
 // ─── Tax Database ────────────────────────────────────────────────────────────
 
@@ -393,9 +394,8 @@ export default function App() {
       <header className="no-print" style={{ background: "#c8102e", borderBottom: "4px solid #000" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 0 14px" }}>
-            <div style={{ background: "#fff", borderRadius: 6, padding: "6px 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-              <div style={{ width: 24, height: 12, background: "#c8102e", borderRadius: 2 }} />
-              <div style={{ width: 24, height: 12, background: "#fff", border: "1px solid #e0e0e0", borderRadius: 2 }} />
+            <div style={{ background: "#fff", borderRadius: 7, padding: "5px 8px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,.12)" }}>
+              <img src={bogaLogo} alt="Boga Group" style={{ width: 58, height: 42, objectFit: "contain", display: "block" }} />
             </div>
             <div>
               <div style={{ color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", opacity: 0.85, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase" }}>
