@@ -310,7 +310,7 @@ function AuthScreen() {
 
           <form onSubmit={submit}>
             {mode === "signup" && <Field label="Nama Lengkap" value={name} onChange={setName} placeholder="Nama kamu" autoComplete="name" />}
-            <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="nama@bogagroup.com" autoComplete="email" />
+            <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="nama@boga.co.id" autoComplete="email" />
             <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="Minimal 6 karakter" autoComplete={mode === "login" ? "current-password" : "new-password"} />
             {mode === "signup" && <Field label="Konfirmasi Password" type="password" value={confirmPassword} onChange={setConfirmPassword} placeholder="Ulangi password" autoComplete="new-password" />}
             <button disabled={busy || !configured} type="submit" style={{ width: "100%", border: 0, borderRadius: 8, padding: "13px 18px", background: busy || !configured ? "#e0e0e0" : "#c8102e", color: busy || !configured ? "#999" : "#fff", fontWeight: 900, fontSize: 15, cursor: busy || !configured ? "not-allowed" : "pointer", marginTop: 6 }}>
