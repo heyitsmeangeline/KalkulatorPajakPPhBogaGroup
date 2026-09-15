@@ -1,0 +1,10 @@
+{
+  "description": "Calculate accurate PPh tax payments for individuals and businesses with tailored options, detailed breakdowns, and downloadable reports.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
