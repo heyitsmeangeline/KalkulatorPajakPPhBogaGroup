@@ -211,7 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = useCallback(async (email: string, password: string, name: string, nikBoga: string) => {
     setError("");
     const normalizedNik = nikBoga.trim().toUpperCase();
-    if (!/^BG\d{6}$/.test(normalizedNik)) throw new Error("NIK Boga harus berformat BG + 6 angka, contoh BG000809.");
+    if (!/^BG\d{6}$/.test(normalizedNik)) throw new Error("NIK Boga harus berformat BG + 6 angka, contoh BG123456.");
 
     const existingNik = await supabaseRequest("/rest/v1/rpc/get_email_by_nik", {
       method: "POST",
@@ -330,7 +330,7 @@ function AuthScreen() {
 
     if (!configured) return;
     if (mode === "signup" && !name.trim()) return setMessage("Nama wajib diisi.");
-    if (mode === "signup" && !/^BG\d{6}$/.test(nikBoga.trim().toUpperCase())) return setMessage("NIK Boga harus berformat BG + 6 angka, contoh BG000809.");
+    if (mode === "signup" && !/^BG\d{6}$/.test(nikBoga.trim().toUpperCase())) return setMessage("NIK Boga harus berformat BG + 6 angka, contoh BG123456.");
     if (mode === "signup" && !email.trim()) return setMessage("Email wajib diisi.");
     if (mode === "login" && !username.trim()) return setMessage("Username wajib diisi.");
     if (password.length < 6) return setMessage("Password minimal 6 karakter.");
@@ -391,7 +391,7 @@ function AuthScreen() {
             {mode === "signup" ? (
               <>
                 <Field label="Nama Lengkap" value={name} onChange={setName} placeholder="Nama kamu" autoComplete="name" />
-                <Field label="NIK Boga" value={nikBoga} onChange={(value) => setNikBoga(value.toUpperCase().replace(/\s/g, ""))} placeholder="Contoh: BG000809" autoComplete="off" />
+                <Field label="NIK Boga" value={nikBoga} onChange={(value) => setNikBoga(value.toUpperCase().replace(/\s/g, ""))} placeholder="Contoh: BG123456" autoComplete="off" />
                 <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="nama@boga.co.id" autoComplete="email" />
               </>
             ) : (
