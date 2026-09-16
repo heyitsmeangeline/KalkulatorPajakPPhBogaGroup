@@ -24,6 +24,8 @@ interface AuthContextValue {
   signUp: (email: string, password: string, name: string, nikBoga: string) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   clearError: () => void;
+  profileReady: boolean;
+  completeProfile: (name: string, nikBoga: string) => Promise<void>;
 }
 
 const STORAGE_KEY = "boga_tax_auth_session";
@@ -102,10 +104,23 @@ function sessionIsExpired(session: AuthSession) {
   return session.expires_at * 1000 <= Date.now() + 60_000;
 }
 
+async function getProfile(userId: string, accessToken: string) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id,full_name,nik_boga`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  const data = await response.json().catch(() => []);
+  if (!response.ok) throw new Error(data?.message || "Gagal memeriksa profil.");
+  return Array.isArray(data) && data.length > 0 ? data[0] : null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(() => getStoredSession());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [profileReady, setProfileReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,7 +134,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const active = sessionIsExpired(stored) ? await refreshSession(stored) : stored;
-        if (!cancelled) setSession(active);
+        const profile = await getProfile(active.user.id, active.access_token);
+        if (!cancelled) {
+          setSession(active);
+          setProfileReady(Boolean(profile?.nik_boga));
+        }
       } catch {
         clearStoredSession();
         if (!cancelled) setSession(null);
@@ -201,9 +220,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       await syncProfile(next.user, next.access_token);
+      const profile = await getProfile(next.user.id, next.access_token);
+      setProfileReady(Boolean(profile?.nik_boga));
     } catch (profileError) {
       clearStoredSession();
       setSession(null);
+      setProfileReady(false);
       throw profileError;
     }
   }, [syncProfile]);
@@ -241,9 +263,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(next);
       try {
         await syncProfile(next.user, next.access_token);
+        const profile = await getProfile(next.user.id, next.access_token);
+        setProfileReady(Boolean(profile?.nik_boga));
       } catch (profileError) {
         clearStoredSession();
         setSession(null);
+        setProfileReady(false);
         throw profileError;
       }
       return { needsEmailConfirmation: false };
@@ -251,6 +276,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return { needsEmailConfirmation: true };
   }, [syncProfile]);
+
+  const completeProfile = useCallback(async (name: string, nikBoga: string) => {
+    if (!session?.access_token || !session.user) throw new Error("Sesi login tidak ditemukan. Silakan login kembali.");
+    const normalizedNik = nikBoga.trim().toUpperCase();
+    const normalizedName = name.trim();
+    if (!normalizedName) throw new Error("Nama Lengkap wajib diisi.");
+    if (!/^BG\d{6}$/.test(normalizedNik)) throw new Error("NIK Boga harus berformat BG + 6 angka, contoh BG123456.");
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?on_conflict=id`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify({ id: session.user.id, full_name: normalizedName, nik_boga: normalizedNik }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      if (data?.code === "23505") throw new Error("NIK Boga tersebut sudah terdaftar pada akun lain.");
+      throw new Error(data?.message || "Gagal menyimpan NIK Boga.");
+    }
+    setProfileReady(true);
+  }, [session]);
 
   const signOut = useCallback(async () => {
     const current = getStoredSession();
@@ -266,6 +317,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       clearStoredSession();
       setSession(null);
+      setProfileReady(false);
     }
   }, []);
 
@@ -290,7 +342,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     signOut,
     clearError: () => setError(""),
-  }), [session, loading, error, signIn, signUp, signOut]);
+    profileReady,
+    completeProfile,
+  }), [session, loading, error, signIn, signUp, signOut, profileReady, completeProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -302,13 +356,73 @@ export function useAuth() {
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, profileReady } = useAuth();
 
   if (loading) {
     return <AuthShell><div style={{ textAlign: "center", color: "#666" }}>Memeriksa sesi login...</div></AuthShell>;
   }
 
-  return user ? <>{children}</> : <AuthScreen />;
+  if (!user) return <AuthScreen />;
+  if (!profileReady) return <CompleteProfileScreen />;
+  return <>{children}</>;
+}
+
+function CompleteProfileScreen() {
+  const { user, completeProfile, error, clearError, signOut } = useAuth();
+  const metadata = user?.user_metadata ?? {};
+  const initialName = typeof metadata.full_name === "string" ? metadata.full_name : "";
+  const [name, setName] = useState(initialName);
+  const [nikBoga, setNikBoga] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    clearError();
+    setMessage("");
+    const normalizedNik = nikBoga.trim().toUpperCase();
+    if (!name.trim()) return setMessage("Nama Lengkap wajib diisi.");
+    if (!/^BG\d{6}$/.test(normalizedNik)) return setMessage("NIK Boga harus berformat BG + 6 angka, contoh BG123456.");
+    setBusy(true);
+    try {
+      await completeProfile(name, normalizedNik);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Gagal menyimpan data akun.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthShell>
+      <div style={{ width: "100%", maxWidth: 430 }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <img src={bogaLogo} alt="Boga Group" style={{ width: 92, height: "auto", display: "block", margin: "0 auto 14px", objectFit: "contain" }} />
+          <div style={{ color: "#c8102e", fontSize: 11, fontWeight: 800, letterSpacing: ".12em", marginTop: 4 }}>KALKULATOR PAJAK</div>
+          <h1 style={{ color: "#202020", fontSize: 25, lineHeight: 1.15, margin: "5px 0 0", fontWeight: 900 }}>LENGKAPI DATA AKUN</h1>
+          <p style={{ color: "#666", fontSize: 13, margin: "8px 0 0" }}>Lengkapi NIK Boga kamu sebelum menggunakan kalkulator.</p>
+        </div>
+
+        <div style={{ background: "#fff", borderRadius: 12, border: "2px solid #e0e0e0", padding: 24, boxShadow: "0 12px 35px rgba(0,0,0,.12)" }}>
+          {(error || message) && (
+            <div style={{ padding: "11px 13px", background: error ? "#fff1f2" : "#f0fdf4", border: `1px solid ${error ? "#f3b5bd" : "#a7e3bd"}`, borderLeft: `3px solid ${error ? "#c8102e" : "#18864b"}`, borderRadius: 7, fontSize: 13, color: error ? "#8b1024" : "#166534", marginBottom: 16 }}>
+              {error || message}
+            </div>
+          )}
+          <form onSubmit={submit}>
+            <Field label="Nama Lengkap" value={name} onChange={setName} placeholder="Nama kamu" autoComplete="name" />
+            <Field label="NIK Boga" value={nikBoga} onChange={(value) => setNikBoga(value.toUpperCase().replace(/\s/g, ""))} placeholder="Contoh: BG123456" autoComplete="off" />
+            <button disabled={busy} type="submit" style={{ width: "100%", border: 0, borderRadius: 8, padding: "13px 18px", background: busy ? "#e0e0e0" : "#c8102e", color: busy ? "#999" : "#fff", fontWeight: 900, fontSize: 15, cursor: busy ? "not-allowed" : "pointer", marginTop: 6 }}>
+              {busy ? "Menyimpan..." : "Simpan & Lanjut →"}
+            </button>
+          </form>
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <button type="button" onClick={signOut} style={{ border: 0, background: "none", color: "#c8102e", fontWeight: 800, cursor: "pointer", padding: 0, fontSize: 12 }}>Keluar</button>
+          </div>
+        </div>
+      </div>
+    </AuthShell>
+  );
 }
 
 function AuthScreen() {
