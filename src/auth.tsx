@@ -20,8 +20,8 @@ interface AuthContextValue {
   loading: boolean;
   configured: boolean;
   error: string;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string) => Promise<{ needsEmailConfirmation: boolean }>;
+  signIn: (username: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, nikBoga: string) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   clearError: () => void;
 }
@@ -52,7 +52,7 @@ function clearStoredSession() {
 
 function friendlyAuthError(message: string): string {
   const normalized = message.toLowerCase();
-  if (normalized.includes("invalid login credentials")) return "Email atau password salah.";
+  if (normalized.includes("invalid login credentials")) return "Username atau password salah.";
   if (normalized.includes("email not confirmed")) return "Email belum dikonfirmasi. Silakan cek inbox email kamu terlebih dahulu.";
   if (normalized.includes("user already registered")) return "Email tersebut sudah terdaftar. Silakan login.";
   if (normalized.includes("password should be at least")) return "Password terlalu pendek. Gunakan minimal 6 karakter.";
@@ -132,11 +132,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const syncProfile = useCallback(async (user: AuthUser, accessToken: string) => {
+    const metadata = user.user_metadata ?? {};
+    const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+    const nikBoga = typeof metadata.nik_boga === "string" ? metadata.nik_boga.trim().toUpperCase() : "";
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=id,full_name,nik_boga`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    const existing = await response.json().catch(() => []);
+    if (!response.ok) throw new Error(existing?.message || "Gagal memeriksa profil.");
+    if (Array.isArray(existing) && existing.length > 0) return;
+    if (!fullName && !nikBoga) return;
+
+    const insertResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ id: user.id, full_name: fullName || null, nik_boga: nikBoga || null }),
+    });
+
+    if (!insertResponse.ok) {
+      const data = await insertResponse.json().catch(() => ({}));
+      if (data?.code === "23505") throw new Error("NIK Boga tersebut sudah terdaftar pada akun lain.");
+      throw new Error(data?.message || "Gagal menyimpan profil.");
+    }
+  }, []);
+
+  const signIn = useCallback(async (username: string, password: string) => {
     setError("");
+    const loginValue = username.trim();
+    let email = loginValue.toLowerCase();
+
+    if (/^BG\d{6}$/.test(loginValue.toUpperCase())) {
+      const nikResponse = await supabaseRequest("/rest/v1/rpc/get_email_by_nik", {
+        method: "POST",
+        body: JSON.stringify({ p_nik: loginValue.toUpperCase() }),
+      });
+      email = Array.isArray(nikResponse) ? (nikResponse[0]?.email ?? "") : (nikResponse?.email ?? "");
+      if (!email) throw new Error("NIK Boga belum terdaftar. Silakan login menggunakan email atau hubungi admin.");
+    }
+
     const data = await supabaseRequest("/auth/v1/token?grant_type=password", {
       method: "POST",
-      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      body: JSON.stringify({ email, password }),
     });
 
     const next: AuthSession = {
@@ -148,16 +194,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     saveSession(next);
     setSession(next);
-  }, []);
 
-  const signUp = useCallback(async (email: string, password: string, name: string) => {
+    try {
+      await syncProfile(next.user, next.access_token);
+    } catch (profileError) {
+      clearStoredSession();
+      setSession(null);
+      throw profileError;
+    }
+  }, [syncProfile]);
+
+  const signUp = useCallback(async (email: string, password: string, name: string, nikBoga: string) => {
     setError("");
+    const normalizedNik = nikBoga.trim().toUpperCase();
+    if (!/^BG\d{6}$/.test(normalizedNik)) throw new Error("NIK Boga harus berformat BG + 6 angka, contoh BG000809.");
+
+    const existingNik = await supabaseRequest("/rest/v1/rpc/get_email_by_nik", {
+      method: "POST",
+      body: JSON.stringify({ p_nik: normalizedNik }),
+    });
+    const existingEmail = Array.isArray(existingNik) ? (existingNik[0]?.email ?? "") : (existingNik?.email ?? "");
+    if (existingEmail) throw new Error("NIK Boga tersebut sudah terdaftar. Silakan gunakan NIK lain atau login dengan NIK tersebut.");
+
     const data = await supabaseRequest("/auth/v1/signup", {
       method: "POST",
       body: JSON.stringify({
         email: email.trim().toLowerCase(),
         password,
-        data: { full_name: name.trim() },
+        data: { full_name: name.trim(), nik_boga: normalizedNik },
       }),
     });
 
@@ -171,11 +235,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       saveSession(next);
       setSession(next);
+      try {
+        await syncProfile(next.user, next.access_token);
+      } catch (profileError) {
+        clearStoredSession();
+        setSession(null);
+        throw profileError;
+      }
       return { needsEmailConfirmation: false };
     }
 
     return { needsEmailConfirmation: true };
-  }, []);
+  }, [syncProfile]);
 
   const signOut = useCallback(async () => {
     const current = getStoredSession();
@@ -199,15 +270,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     configured,
     error,
-    signIn: async (email, password) => {
-      try { await signIn(email, password); } catch (err) {
+    signIn: async (username, password) => {
+      try { await signIn(username, password); } catch (err) {
         const message = friendlyAuthError(err instanceof Error ? err.message : "");
         setError(message);
         throw new Error(message);
       }
     },
-    signUp: async (email, password, name) => {
-      try { return await signUp(email, password, name); } catch (err) {
+    signUp: async (email, password, name, nikBoga) => {
+      try { return await signUp(email, password, name, nikBoga); } catch (err) {
         const message = friendlyAuthError(err instanceof Error ? err.message : "");
         setError(message);
         throw new Error(message);
@@ -240,7 +311,9 @@ function AuthScreen() {
   const { signIn, signUp, configured, error, clearError } = useAuth();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [nikBoga, setNikBoga] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -253,16 +326,18 @@ function AuthScreen() {
 
     if (!configured) return;
     if (mode === "signup" && !name.trim()) return setMessage("Nama wajib diisi.");
-    if (!email.trim()) return setMessage("Email wajib diisi.");
+    if (mode === "signup" && !/^BG\d{6}$/.test(nikBoga.trim().toUpperCase())) return setMessage("NIK Boga harus berformat BG + 6 angka, contoh BG000809.");
+    if (mode === "signup" && !email.trim()) return setMessage("Email wajib diisi.");
+    if (mode === "login" && !username.trim()) return setMessage("Username wajib diisi.");
     if (password.length < 6) return setMessage("Password minimal 6 karakter.");
     if (mode === "signup" && password !== confirmPassword) return setMessage("Konfirmasi password tidak sama.");
 
     setBusy(true);
     try {
       if (mode === "login") {
-        await signIn(email, password);
+        await signIn(username, password);
       } else {
-        const result = await signUp(email, password, name);
+        const result = await signUp(email, password, name, nikBoga);
         if (result.needsEmailConfirmation) {
           setMessage("Akun berhasil dibuat. Silakan cek email untuk konfirmasi akun, lalu login.");
           setMode("login");
@@ -309,8 +384,15 @@ function AuthScreen() {
           )}
 
           <form onSubmit={submit}>
-            {mode === "signup" && <Field label="Nama Lengkap" value={name} onChange={setName} placeholder="Nama kamu" autoComplete="name" />}
-            <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="nama@boga.co.id" autoComplete="email" />
+            {mode === "signup" ? (
+              <>
+                <Field label="Nama Lengkap" value={name} onChange={setName} placeholder="Nama kamu" autoComplete="name" />
+                <Field label="NIK Boga" value={nikBoga} onChange={(value) => setNikBoga(value.toUpperCase().replace(/\s/g, ""))} placeholder="Contoh: BG000809" autoComplete="off" />
+                <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="nama@boga.co.id" autoComplete="email" />
+              </>
+            ) : (
+              <Field label="Username" value={username} onChange={setUsername} placeholder="Email atau NIK Boga" autoComplete="username" />
+            )}
             <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="Minimal 6 karakter" autoComplete={mode === "login" ? "current-password" : "new-password"} />
             {mode === "signup" && <Field label="Konfirmasi Password" type="password" value={confirmPassword} onChange={setConfirmPassword} placeholder="Ulangi password" autoComplete="new-password" />}
             <button disabled={busy || !configured} type="submit" style={{ width: "100%", border: 0, borderRadius: 8, padding: "13px 18px", background: busy || !configured ? "#e0e0e0" : "#c8102e", color: busy || !configured ? "#999" : "#fff", fontWeight: 900, fontSize: 15, cursor: busy || !configured ? "not-allowed" : "pointer", marginTop: 6 }}>
