@@ -176,7 +176,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         body: JSON.stringify({ p_nik: loginValue.toUpperCase() }),
       });
-      email = Array.isArray(nikResponse) ? (nikResponse[0]?.email ?? "") : (nikResponse?.email ?? "");
+      email = typeof nikResponse === "string"
+        ? nikResponse
+        : Array.isArray(nikResponse)
+          ? (nikResponse[0]?.email ?? "")
+          : (nikResponse?.email ?? "");
       if (!email) throw new Error("NIK Boga belum terdaftar. Silakan login menggunakan email atau hubungi admin.");
     }
 
