@@ -963,10 +963,11 @@ export default function App() {
         {step === 5 && (
           <>
             {/* Print area */}
-            <div ref={printRef} style={{ background: "#fff", borderRadius: 10, border: "2px solid #e0e0e0", overflow: "hidden", boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+            <div ref={printRef} className="print-area" style={{ background: "#fff", borderRadius: 10, border: "2px solid #e0e0e0", overflow: "hidden", boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
               {/* Result header */}
-              <div style={{ background: "#1a1a1a", padding: "20px 28px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
+              <div style={{ background: "#1a1a1a", padding: "20px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+                <img className="print-logo" src={bogaLogo} alt="Boga Group" style={{ width: 54, height: 38, objectFit: "contain", background: "#fff", borderRadius: 5, padding: 4, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: "#c8102e", fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", fontFamily: "'JetBrains Mono', monospace" }}>
                     PERHITUNGAN PAJAK BOGA GROUP
                   </div>
@@ -1086,11 +1087,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Print-only header */}
-      <div className="print-only" style={{ textAlign: "center", padding: "20px 0 10px", borderBottom: "2px solid #c8102e" }}>
-        <div style={{ fontSize: 22, fontWeight: 900, color: "#c8102e" }}>PERHITUNGAN PAJAK BOGA GROUP</div>
-        <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>Kalkulator PPh Pembayaran ke Vendor</div>
-      </div>
     </div>
   );
 }
@@ -1131,14 +1127,14 @@ function ResultRow({ label, value, highlight, mono, indent }: {
   label: string; value: string; highlight?: boolean; mono?: boolean; indent?: boolean;
 }) {
   return (
-    <div style={{
+    <div className="print-result-row" style={{
       display: "flex", justifyContent: "space-between", alignItems: "flex-start",
       padding: `${indent ? "6px" : "10px"} ${indent ? "8px" : "0"}`,
       borderBottom: "1px solid #f5f5f5",
       background: indent ? "#fafafa" : "transparent",
     }}>
-      <span style={{ fontSize: 13, color: highlight ? "#c8102e" : "#666", fontWeight: highlight ? 800 : 500, paddingRight: 16 }}>{label}</span>
-      <span style={{
+      <span className="print-result-label" style={{ fontSize: 13, color: highlight ? "#c8102e" : "#666", fontWeight: highlight ? 800 : 500, paddingRight: 16 }}>{label}</span>
+      <span className="print-result-value" style={{
         fontSize: 13, fontWeight: highlight ? 800 : 700,
         fontFamily: mono ? "'JetBrains Mono', monospace" : "inherit",
         color: highlight ? "#c8102e" : "#0f0f0f",
