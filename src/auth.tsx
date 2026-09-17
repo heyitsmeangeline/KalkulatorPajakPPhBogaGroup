@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import bogaLogo from "./assets/logo-boga.png";
 
 export interface AuthUser {
@@ -21,7 +21,7 @@ interface AuthContextValue {
   configured: boolean;
   error: string;
   signIn: (username: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string, nikBoga: string) => Promise<{ needsEmailConfirmation: boolean }>;
+  signUp: (email: string, password: string, name: string, nikBoga: string, registrationCode: string) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   clearError: () => void;
   profileReady: boolean;
@@ -58,7 +58,8 @@ function friendlyAuthError(message: string): string {
   if (normalized.includes("email not confirmed")) return "Email belum dikonfirmasi. Silakan cek inbox email kamu terlebih dahulu.";
   if (normalized.includes("user already registered")) return "Email tersebut sudah terdaftar. Silakan login.";
   if (normalized.includes("password should be at least")) return "Password terlalu pendek. Gunakan minimal 6 karakter.";
-  if (normalized.includes("rate limit")) return "Terlalu banyak percobaan. Silakan coba lagi beberapa saat lagi.";
+  if (normalized.includes("rate limit") || normalized.includes("too many requests") || normalized.includes("429")) return "Terlalu banyak percobaan. Silakan coba lagi beberapa saat lagi.";
+  if (normalized.includes("email rate limit")) return "Terlalu banyak percobaan. Silakan coba lagi beberapa saat lagi.";
   return message || "Terjadi kesalahan. Silakan coba lagi.";
 }
 
@@ -190,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const loginValue = username.trim();
     let email = loginValue.toLowerCase();
 
-    if (/^BG\d{6}$/.test(loginValue.toUpperCase())) {
+    if (/^(BG|RBB)\d{6}$/.test(loginValue.toUpperCase())) {
       const nikResponse = await supabaseRequest("/rest/v1/rpc/get_email_by_nik", {
         method: "POST",
         body: JSON.stringify({ p_nik: loginValue.toUpperCase() }),
@@ -230,10 +231,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [syncProfile]);
 
-  const signUp = useCallback(async (email: string, password: string, name: string, nikBoga: string) => {
+  const signUp = useCallback(async (email: string, password: string, name: string, nikBoga: string, registrationCode: string) => {
     setError("");
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedName = name.trim();
     const normalizedNik = nikBoga.trim().toUpperCase();
-    if (!/^BG\d{6}$/.test(normalizedNik)) throw new Error("NIK Boga harus berformat BG + 6 angka, contoh BG123456.");
+    const normalizedRegistrationCode = registrationCode.trim().toUpperCase();
+
+    if (!normalizedName) throw new Error("Nama Lengkap wajib diisi.");
+    if (!/^[^\s@]+@boga\.co\.id$/i.test(normalizedEmail)) throw new Error("Email harus menggunakan alamat @boga.co.id.");
+    if (!/^(BG|RBB)\d{6}$/.test(normalizedNik)) throw new Error("NIK Boga harus berformat BG + 6 angka atau RBB + 6 angka, contoh BG123456 atau RBB123456.");
+    if (normalizedRegistrationCode !== "BOGA2002") throw new Error("Kode registrasi tidak valid. Silakan masukkan kode registrasi yang benar.");
 
     const existingNik = await supabaseRequest("/rest/v1/rpc/get_email_by_nik", {
       method: "POST",
@@ -245,9 +253,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await supabaseRequest("/auth/v1/signup", {
       method: "POST",
       body: JSON.stringify({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
-        data: { full_name: name.trim(), nik_boga: normalizedNik },
+        data: { full_name: normalizedName, nik_boga: normalizedNik },
       }),
     });
 
@@ -282,7 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedNik = nikBoga.trim().toUpperCase();
     const normalizedName = name.trim();
     if (!normalizedName) throw new Error("Nama Lengkap wajib diisi.");
-    if (!/^BG\d{6}$/.test(normalizedNik)) throw new Error("NIK Boga harus berformat BG + 6 angka, contoh BG123456.");
+    if (!/^(BG|RBB)\d{6}$/.test(normalizedNik)) throw new Error("NIK Boga harus berformat BG + 6 angka atau RBB + 6 angka, contoh BG123456 atau RBB123456.");
 
     const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?on_conflict=id`, {
       method: "POST",
@@ -333,8 +341,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(message);
       }
     },
-    signUp: async (email, password, name, nikBoga) => {
-      try { return await signUp(email, password, name, nikBoga); } catch (err) {
+    signUp: async (email, password, name, nikBoga, registrationCode) => {
+      try { return await signUp(email, password, name, nikBoga, registrationCode); } catch (err) {
         const message = friendlyAuthError(err instanceof Error ? err.message : "");
         setError(message);
         throw new Error(message);
@@ -375,14 +383,13 @@ function CompleteProfileScreen() {
   const [nikBoga, setNikBoga] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     clearError();
     setMessage("");
     const normalizedNik = nikBoga.trim().toUpperCase();
     if (!name.trim()) return setMessage("Nama Lengkap wajib diisi.");
-    if (!/^BG\d{6}$/.test(normalizedNik)) return setMessage("NIK Boga harus berformat BG + 6 angka, contoh BG123456.");
+    if (!/^(BG|RBB)\d{6}$/.test(normalizedNik)) return setMessage("NIK Boga harus berformat BG + 6 angka atau RBB + 6 angka, contoh BG123456 atau RBB123456.");
     setBusy(true);
     try {
       await completeProfile(name, normalizedNik);
@@ -411,7 +418,7 @@ function CompleteProfileScreen() {
           )}
           <form onSubmit={submit}>
             <Field label="Nama Lengkap" value={name} onChange={setName} placeholder="Nama kamu" autoComplete="name" />
-            <Field label="NIK Boga" value={nikBoga} onChange={(value) => setNikBoga(value.toUpperCase().replace(/\s/g, ""))} placeholder="Contoh: BG123456" autoComplete="off" />
+            <Field label="NIK Boga" value={nikBoga} onChange={(value) => setNikBoga(value.toUpperCase().replace(/\s/g, ""))} placeholder="Contoh: BG123456 / RBB123456" autoComplete="off" />
             <button disabled={busy} type="submit" style={{ width: "100%", border: 0, borderRadius: 8, padding: "13px 18px", background: busy ? "#e0e0e0" : "#c8102e", color: busy ? "#999" : "#fff", fontWeight: 900, fontSize: 15, cursor: busy ? "not-allowed" : "pointer", marginTop: 6 }}>
               {busy ? "Menyimpan..." : "Simpan & Lanjut →"}
             </button>
@@ -432,32 +439,38 @@ function AuthScreen() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [nikBoga, setNikBoga] = useState("");
+  const [registrationCode, setRegistrationCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const submittingRef = useRef(false);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (submittingRef.current) return;
     clearError();
     setMessage("");
 
     if (!configured) return;
     if (mode === "signup" && !name.trim()) return setMessage("Nama wajib diisi.");
-    if (mode === "signup" && !/^BG\d{6}$/.test(nikBoga.trim().toUpperCase())) return setMessage("NIK Boga harus berformat BG + 6 angka, contoh BG123456.");
+    if (mode === "signup" && !/^(BG|RBB)\d{6}$/.test(nikBoga.trim().toUpperCase())) return setMessage("NIK Boga harus berformat BG + 6 angka atau RBB + 6 angka, contoh BG123456 atau RBB123456.");
     if (mode === "signup" && !email.trim()) return setMessage("Email wajib diisi.");
+    if (mode === "signup" && !/^[^\s@]+@boga\.co\.id$/i.test(email.trim())) return setMessage("Email harus menggunakan alamat @boga.co.id.");
+    if (mode === "signup" && registrationCode.trim().toUpperCase() !== "BOGA2002") return setMessage("Kode registrasi tidak valid. Silakan masukkan kode registrasi yang benar.");
     if (mode === "login" && !username.trim()) return setMessage("Username wajib diisi.");
     if (password.length < 6) return setMessage("Password minimal 6 karakter.");
     if (mode === "signup" && password !== confirmPassword) return setMessage("Konfirmasi password tidak sama.");
 
+    submittingRef.current = true;
     setBusy(true);
     try {
       if (mode === "login") {
         await signIn(username, password);
       } else {
-        const result = await signUp(email, password, name, nikBoga);
+        const result = await signUp(email, password, name, nikBoga, registrationCode);
         if (result.needsEmailConfirmation) {
-          setMessage("Akun berhasil dibuat. Silakan cek email untuk konfirmasi akun, lalu login.");
+          setMessage("Akun berhasil dibuat. Silakan login kembali menggunakan email atau NIK Boga.");
           setMode("login");
           setPassword("");
           setConfirmPassword("");
@@ -466,6 +479,7 @@ function AuthScreen() {
     } catch {
       // Error is shown by AuthProvider.
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };
@@ -505,8 +519,9 @@ function AuthScreen() {
             {mode === "signup" ? (
               <>
                 <Field label="Nama Lengkap" value={name} onChange={setName} placeholder="Nama kamu" autoComplete="name" />
-                <Field label="NIK Boga" value={nikBoga} onChange={(value) => setNikBoga(value.toUpperCase().replace(/\s/g, ""))} placeholder="Contoh: BG123456" autoComplete="off" />
+                <Field label="NIK Boga" value={nikBoga} onChange={(value) => setNikBoga(value.toUpperCase().replace(/\s/g, ""))} placeholder="Contoh: BG123456 / RBB123456" autoComplete="off" />
                 <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="nama@boga.co.id" autoComplete="email" />
+                <Field label="Kode Registrasi" value={registrationCode} onChange={(value) => setRegistrationCode(value.toUpperCase().replace(/\s/g, ""))} placeholder="Masukkan kode registrasi" autoComplete="off" />
               </>
             ) : (
               <Field label="Username" value={username} onChange={setUsername} placeholder="Email atau NIK Boga" autoComplete="username" />
