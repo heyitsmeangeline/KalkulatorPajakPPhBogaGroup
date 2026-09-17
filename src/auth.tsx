@@ -260,26 +260,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (data.access_token && data.user) {
-      const next: AuthSession = {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        expires_in: data.expires_in,
-        expires_at: data.expires_at ?? Math.floor(Date.now() / 1000) + (data.expires_in ?? 3600),
-        user: data.user,
-      };
-      saveSession(next);
-      setSession(next);
+      // Confirm Email is OFF, so Supabase returns a session immediately.
+      // For this app, a new user must still log in manually after Sign Up.
+      // Save the profile while the temporary signup token is valid, then discard the session.
       try {
-        await syncProfile(next.user, next.access_token);
-        const profile = await getProfile(next.user.id, next.access_token);
-        setProfileReady(Boolean(profile?.nik_boga));
+        await syncProfile(data.user, data.access_token);
       } catch (profileError) {
-        clearStoredSession();
-        setSession(null);
-        setProfileReady(false);
         throw profileError;
       }
-      return { needsEmailConfirmation: false };
+      clearStoredSession();
+      setSession(null);
+      setProfileReady(false);
+      return { needsEmailConfirmation: true };
     }
 
     return { needsEmailConfirmation: true };
