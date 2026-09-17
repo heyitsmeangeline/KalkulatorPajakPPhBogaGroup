@@ -58,15 +58,105 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: #a0a0a0; }
 
 /* Print styles */
+@page {
+  size: A4 portrait;
+  margin: 8mm;
+}
+
+.print-logo { display: none; }
+
 @media print {
-  body { background: white; }
-  .no-print { display: none !important; }
-  .print-only { display: block !important; }
+  html, body {
+    width: 210mm;
+    height: 297mm;
+    background: #fff !important;
+  }
+
+  body {
+    margin: 0 !important;
+    font-size: 9px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print, .print-only { display: none !important; }
+
   .print-area {
-    position: static !important;
+    display: block !important;
     width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 1px solid #d9d9d9 !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
-    border: none !important;
+    overflow: visible !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-area > div:first-child {
+    padding: 10px 16px !important;
+  }
+
+  .print-area .print-logo {
+    display: block !important;
+    width: 46px !important;
+    height: 32px !important;
+  }
+
+  .print-area > div:nth-child(2) {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .print-area .print-result-row {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-area .print-result-label {
+    width: 34% !important;
+    flex: 0 0 34% !important;
+    padding-right: 10px !important;
+    font-size: 9px !important;
+    line-height: 1.25 !important;
+  }
+
+  .print-area .print-result-value {
+    flex: 1 1 66% !important;
+    min-width: 0 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    font-size: 9px !important;
+    line-height: 1.25 !important;
+    text-align: right !important;
+  }
+
+  .print-area [style*="padding: 16px 0 6px"] {
+    padding-top: 7px !important;
+    padding-bottom: 4px !important;
+    font-size: 8px !important;
+  }
+
+  .print-area > div:nth-last-child(2) {
+    margin: 8px 16px 10px !important;
+    padding: 10px 14px !important;
+  }
+
+  .print-area > div:nth-last-child(2) div {
+    line-height: 1.2 !important;
+  }
+
+  .print-area > div:last-child {
+    padding: 7px 16px !important;
+  }
+
+  .print-area > div:last-child div {
+    font-size: 8px !important;
+    line-height: 1.2 !important;
   }
 }
 
