@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "./auth";
 import bogaLogo from "./assets/logo-boga.png";
 
@@ -240,6 +240,72 @@ const STEPS = [
   "Hasil Perhitungan",
 ];
 
+// ─── Calculation History ─────────────────────────────────────────────────────
+
+interface HistoryRecord {
+  id: string;
+  created_at: string;
+  pph_type: string | null;
+  object_code: string | null;
+  object_name: string | null;
+  pph_terutang: number | null;
+  nominal_vendor: number | null;
+  calculation_data: {
+    state: CalcState;
+    effectiveTarif: number | null;
+    ppnNum: number;
+    dppJasaNum: number;
+    dppBarangNum: number;
+    pphTerutang: number;
+    totalTagihan: number;
+    nominalVendor: number;
+    pasal17Breakdown: { label: string; rate: number; amount: number; tax: number }[];
+  } | null;
+}
+
+const HISTORY_STORAGE_KEY = "boga_tax_auth_session";
+const HISTORY_SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+const HISTORY_SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? "";
+
+function getAccessToken(): string {
+  try {
+    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+    const session = raw ? JSON.parse(raw) as { access_token?: string } : null;
+    return session?.access_token ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function historyRequest(path: string, options: RequestInit = {}) {
+  const token = getAccessToken();
+  if (!HISTORY_SUPABASE_URL || !HISTORY_SUPABASE_ANON_KEY || !token) {
+    throw new Error("Sesi login tidak ditemukan.");
+  }
+
+  const response = await fetch(`${HISTORY_SUPABASE_URL}${path}`, {
+    ...options,
+    headers: {
+      apikey: HISTORY_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(options.headers ?? {}),
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || data?.msg || data?.hint || data?.details || "Gagal mengakses riwayat perhitungan.");
+  }
+  return data;
+}
+
+function formatHistoryDate(value: string): string {
+  return new Date(value).toLocaleString("id-ID", {
+    day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function App() {
@@ -247,6 +313,92 @@ export default function App() {
   const [step, setStep] = useState(0);
   const [search, setSearch] = useState("");
   const printRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState<"calculator" | "history">("calculator");
+  const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [saveToHistory, setSaveToHistory] = useState(false);
+  const [savingHistory, setSavingHistory] = useState(false);
+  const [historySaved, setHistorySaved] = useState(false);
+  const [profileName, setProfileName] = useState(() => (user?.user_metadata?.full_name as string | undefined) || user?.email || "Pengguna");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProfileName() {
+      const metadataName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "";
+      if (metadataName) {
+        setProfileName(metadataName);
+        return;
+      }
+      if (!user?.id) return;
+      try {
+        const data = await historyRequest(`/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=full_name&limit=1`, {
+          headers: { Accept: "application/json" },
+        });
+        const name = data?.[0]?.full_name;
+        if (!cancelled && typeof name === "string" && name.trim()) setProfileName(name.trim());
+      } catch {
+        // Email remains the fallback if profile lookup is unavailable.
+      }
+    }
+    void loadProfileName();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.user_metadata?.full_name, user?.email]);
+
+  const loadHistory = async () => {
+    if (!user?.id) return;
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const data = await historyRequest(`/rest/v1/calculation_history?select=*&user_id=eq.${encodeURIComponent(user.id)}&order=created_at.desc`);
+      setHistory((data ?? []) as HistoryRecord[]);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Gagal memuat riwayat perhitungan.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openHistory = () => {
+    setPage("history");
+    void loadHistory();
+  };
+
+  const saveCurrentCalculation = async () => {
+    if (!saveToHistory || historySaved || !user?.id || !state.selectedCode) return;
+    setSavingHistory(true);
+    try {
+      await historyRequest("/rest/v1/calculation_history", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          user_id: user.id,
+          pph_type: getPPHLabel(state.selectedCode.pph),
+          object_code: state.selectedCode.kode,
+          object_name: state.selectedCode.nama,
+          pph_terutang: pphTerutang,
+          nominal_vendor: nominalVendor,
+          calculation_data: {
+            state,
+            effectiveTarif: effectiveTarif ?? null,
+            ppnNum,
+            dppJasaNum,
+            dppBarangNum,
+            pphTerutang,
+            totalTagihan,
+            nominalVendor,
+            pasal17Breakdown,
+          },
+        }),
+      });
+      setHistorySaved(true);
+      setSaveToHistory(false);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Gagal menyimpan perhitungan ke riwayat.");
+    } finally {
+      setSavingHistory(false);
+    }
+  };
 
   const [state, setState] = useState<CalcState>({
     wpType: null,
@@ -363,6 +515,8 @@ export default function App() {
     });
     setSearch("");
     setStep(0);
+    setSaveToHistory(false);
+    setHistorySaved(false);
   };
 
   const pasal17Breakdown = (() => {
@@ -406,10 +560,18 @@ export default function App() {
               </div>
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ color: "#fff", opacity: 0.85, fontSize: 11, textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>
-                {user?.email || "Pengguna"}<br />
-                Mengetahui Nominal PPh Pembayaran ke Vendor
+              <div style={{ color: "#fff", opacity: 0.95, fontSize: 11, textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>
+                <div style={{ fontWeight: 800, fontFamily: "'Nunito', sans-serif", fontSize: 13, marginBottom: 2 }}>{profileName}</div>
+                <div>Mengetahui Nominal PPh Pembayaran ke Vendor</div>
               </div>
+              <button
+                type="button"
+                onClick={openHistory}
+                className="no-print"
+                style={{ padding: "8px 12px", borderRadius: 7, border: "1px solid rgba(255,255,255,.45)", background: "rgba(0,0,0,.12)", color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                📋 Riwayat Perhitungan
+              </button>
               <button
                 type="button"
                 onClick={() => void signOut()}
@@ -424,7 +586,7 @@ export default function App() {
       </header>
 
       {/* ── Progress Bar ── */}
-      <div className="no-print" style={{ background: "#1a1a1a", borderBottom: "2px solid #000" }}>
+      {page === "calculator" && <div className="no-print" style={{ background: "#1a1a1a", borderBottom: "2px solid #000" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
           <div style={{ display: "flex", overflowX: "auto" }}>
             {STEPS.map((s, i) => (
@@ -461,11 +623,20 @@ export default function App() {
             ))}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ── Main Content ── */}
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 20px 60px" }}>
-
+        {page === "history" ? (
+          <HistoryPage
+            history={history}
+            loading={historyLoading}
+            error={historyError}
+            onBack={() => setPage("calculator")}
+            onRefresh={() => void loadHistory()}
+          />
+        ) : (
+        <>
         {/* ═══ STEP 0: Jenis Wajib Pajak ═══ */}
         {step === 0 && (
           <Card title="Langkah 1" subtitle="Pilih Jenis Wajib Pajak">
@@ -1052,8 +1223,43 @@ export default function App() {
               </div>
             </div>
 
+            {/* Save to history */}
+            <div className="no-print" style={{ marginTop: 16, padding: "12px 14px", background: historySaved ? "#f0fff4" : "#f9f9f9", border: `1px solid ${historySaved ? "#b7e4c7" : "#e0e0e0"}`, borderRadius: 8 }}>
+              {historySaved ? (
+                <div style={{ color: "#287a45", fontSize: 13, fontWeight: 800 }}>✓ Perhitungan sudah disimpan ke riwayat.</div>
+              ) : (
+                <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: savingHistory ? "wait" : "pointer", fontSize: 13, color: "#444", fontWeight: 700 }}>
+                  <input
+                    type="checkbox"
+                    checked={saveToHistory}
+                    onChange={(e) => setSaveToHistory(e.target.checked)}
+                    disabled={savingHistory}
+                    style={{ width: 17, height: 17, accentColor: "#c8102e", cursor: savingHistory ? "wait" : "pointer" }}
+                  />
+                  Simpan perhitungan ke riwayat
+                </label>
+              )}
+            </div>
+
             {/* Action buttons */}
             <div className="no-print" style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+              {saveToHistory && (
+                <button
+                  onClick={() => void saveCurrentCalculation()}
+                  disabled={savingHistory}
+                  style={{
+                    flex: 1, minWidth: 200,
+                    padding: "14px 24px",
+                    background: savingHistory ? "#e0e0e0" : "#fff", color: savingHistory ? "#999" : "#c8102e",
+                    border: `2px solid ${savingHistory ? "#ccc" : "#c8102e"}`, borderRadius: 8,
+                    fontWeight: 800, fontSize: 15, cursor: savingHistory ? "wait" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    fontFamily: "'Nunito', sans-serif",
+                  }}
+                >
+                  {savingHistory ? "⏳ Menyimpan..." : "💾 Simpan ke Riwayat"}
+                </button>
+              )}
               <button
                 onClick={handlePrint}
                 style={{
@@ -1085,6 +1291,8 @@ export default function App() {
             </div>
           </>
         )}
+        </>
+        )}
       </div>
 
     </div>
@@ -1092,6 +1300,85 @@ export default function App() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function HistoryPage({ history, loading, error, onBack, onRefresh }: {
+  history: HistoryRecord[];
+  loading: boolean;
+  error: string;
+  onBack: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ color: "#c8102e", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>RIWAYAT PERHITUNGAN</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: "#111", marginTop: 4 }}>Perhitungan yang Disimpan</div>
+          <div style={{ fontSize: 13, color: "#777", marginTop: 4 }}>Hanya perhitungan yang kamu pilih untuk disimpan yang tampil di sini.</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" onClick={onRefresh} style={{ padding: "9px 14px", borderRadius: 7, border: "1px solid #ddd", background: "#fff", color: "#444", fontWeight: 800, cursor: "pointer" }}>↻ Refresh</button>
+          <button type="button" onClick={onBack} style={{ padding: "9px 14px", borderRadius: 7, border: "1px solid #c8102e", background: "#fff", color: "#c8102e", fontWeight: 800, cursor: "pointer" }}>← Kalkulator</button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, padding: 40, textAlign: "center", color: "#777" }}>Memuat riwayat perhitungan...</div>
+      ) : error ? (
+        <div style={{ background: "#fff5f5", border: "1px solid #f2b8c0", borderRadius: 10, padding: 20, color: "#a30d26", fontSize: 13 }}>{error}</div>
+      ) : history.length === 0 ? (
+        <div style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, padding: 50, textAlign: "center" }}>
+          <div style={{ fontSize: 34, marginBottom: 10 }}>📋</div>
+          <div style={{ fontSize: 17, fontWeight: 900, color: "#222" }}>Belum ada riwayat</div>
+          <div style={{ fontSize: 13, color: "#888", marginTop: 6 }}>Selesaikan perhitungan lalu pilih “Simpan ke Riwayat”.</div>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {history.map((item) => (
+            <div key={item.id} style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 18 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ color: "#c8102e", fontWeight: 900, fontSize: 13 }}>{item.pph_type || "PPh"}</span>
+                    {item.object_code && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#666", background: "#f4f4f4", padding: "2px 6px", borderRadius: 4 }}>{item.object_code}</span>}
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#222", marginTop: 7, lineHeight: 1.4 }}>{item.object_name || "Objek pajak"}</div>
+                  <div style={{ fontSize: 11, color: "#999", marginTop: 7 }}>{formatHistoryDate(item.created_at)}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>PPh Terutang</div>
+                  <div style={{ color: "#c8102e", fontSize: 16, fontWeight: 900, fontFamily: "'JetBrains Mono', monospace", marginTop: 3 }}>{formatRupiah(Number(item.pph_terutang || 0))}</div>
+                  <div style={{ fontSize: 11, color: "#666", marginTop: 5 }}>Dibayar ke vendor: <strong>{formatRupiah(Number(item.nominal_vendor || 0))}</strong></div>
+                </div>
+              </div>
+              {item.calculation_data && (
+                <details style={{ borderTop: "1px solid #f0f0f0", background: "#fafafa" }}>
+                  <summary style={{ padding: "10px 18px", cursor: "pointer", color: "#c8102e", fontSize: 12, fontWeight: 800 }}>Lihat detail perhitungan</summary>
+                  <div style={{ padding: "0 18px 14px", display: "grid", gap: 0 }}>
+                    <HistoryDetailRow label="Jenis Wajib Pajak" value={item.calculation_data.state.wpType === "orang_pribadi" ? "Orang Pribadi (KTP)" : item.calculation_data.state.wpType === "badan_dalam" ? "Badan Dalam Negeri (NPWP)" : "Badan Luar Negeri"} />
+                    <HistoryDetailRow label="DPP Jasa" value={formatRupiah(item.calculation_data.dppJasaNum)} />
+                    <HistoryDetailRow label="DPP Barang" value={formatRupiah(item.calculation_data.dppBarangNum)} />
+                    <HistoryDetailRow label="PPN" value={item.calculation_data.state.ppnStatus === "ada" ? formatRupiah(item.calculation_data.ppnNum) : "Rp 0 (Tidak ada PPN)"} />
+                    <HistoryDetailRow label="Nominal Dibayar ke Vendor" value={formatRupiah(item.calculation_data.nominalVendor)} highlight />
+                  </div>
+                </details>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryDetailRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "8px 0", borderBottom: "1px solid #eee", fontSize: 12 }}>
+      <span style={{ color: "#777" }}>{label}</span>
+      <span style={{ color: highlight ? "#c8102e" : "#222", fontWeight: 800, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
 
 function Card({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
