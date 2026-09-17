@@ -1128,19 +1128,30 @@ function ResultRow({ label, value, highlight, mono, indent }: {
 }) {
   return (
     <div className="print-result-row" style={{
-      display: "flex", justifyContent: "space-between", alignItems: "flex-start",
-      gap: 20,
+      display: "grid",
+      gridTemplateColumns: "minmax(150px, 32%) minmax(0, 1fr)",
+      columnGap: 20,
+      alignItems: "start",
       padding: `${indent ? "6px" : "10px"} ${indent ? "8px" : "0"}`,
       borderBottom: "1px solid #f5f5f5",
       background: indent ? "#fafafa" : "transparent",
     }}>
-      <span className="print-result-label" style={{ fontSize: 13, color: highlight ? "#c8102e" : "#666", fontWeight: highlight ? 800 : 500, paddingRight: 16, flex: "0 0 auto", minWidth: 0 }}>{label}</span>
+      <span className="print-result-label" style={{
+        fontSize: 13,
+        color: highlight ? "#c8102e" : "#666",
+        fontWeight: highlight ? 800 : 500,
+        minWidth: 0,
+      }}>{label}</span>
       <span className="print-result-value" style={{
-        fontSize: 13, fontWeight: highlight ? 800 : 700,
+        fontSize: 13,
+        fontWeight: highlight ? 800 : 700,
         fontFamily: mono ? "'JetBrains Mono', monospace" : "inherit",
         color: highlight ? "#c8102e" : "#0f0f0f",
-        textAlign: "right", flex: "1 1 auto", minWidth: 0, maxWidth: "72%",
-        whiteSpace: "normal", overflowWrap: "anywhere", wordBreak: "break-word",
+        textAlign: "right",
+        minWidth: 0,
+        whiteSpace: "normal",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
       }}>{value}</span>
     </div>
   );
