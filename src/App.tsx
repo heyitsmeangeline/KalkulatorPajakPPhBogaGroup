@@ -1322,13 +1322,13 @@ export default function App() {
               </div>
 
             {/* Action buttons */}
-            <div className="no-print" style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+            <div className="no-print" style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "nowrap", width: "100%" }}>
               {saveToHistory && (
                 <button
                   onClick={() => void saveCurrentCalculation()}
                   disabled={savingHistory}
                   style={{
-                    flex: 1, minWidth: 200,
+                    flex: "1 1 0", minWidth: 0,
                     padding: "14px 24px",
                     background: savingHistory ? "#e0e0e0" : "#fff", color: savingHistory ? "#999" : "#c8102e",
                     border: `2px solid ${savingHistory ? "#ccc" : "#c8102e"}`, borderRadius: 8,
@@ -1343,7 +1343,7 @@ export default function App() {
               <button
                 onClick={handlePrint}
                 style={{
-                  flex: 1, minWidth: 200,
+                  flex: "1 1 0", minWidth: 0,
                   padding: "14px 24px",
                   background: "#1a1a1a", color: "#fff",
                   border: "2px solid #1a1a1a", borderRadius: 8,
@@ -1359,7 +1359,7 @@ export default function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  flex: 1, minWidth: 200,
+                  flex: "1 1 0", minWidth: 0,
                   padding: "14px 24px",
                   background: "#c8102e", color: "#fff",
                   border: "2px solid #c8102e", borderRadius: 8,
