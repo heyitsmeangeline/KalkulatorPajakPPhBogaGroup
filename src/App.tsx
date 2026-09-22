@@ -1268,11 +1268,11 @@ export default function App() {
 
                 <div style={{ padding: 16 }}>
                   {[
-                    { label: "Harga Barang", value: formatRupiah(dppBarangNum) },
-                    { label: "Harga Jasa", value: formatRupiah(dppJasaNum) },
+                    { label: "Harga Barang", value: String(Math.round(dppBarangNum)) },
+                    { label: "Harga Jasa", value: String(Math.round(dppJasaNum)) },
                     { label: "Kode Akun Pajak (PPH)", value: state.selectedCode?.kode || "-" },
-                    { label: "Nominal Pajak (PPH)", value: formatRupiah(pphTerutang) },
-                    { label: "Nominal VAT / PPN", value: state.ppnStatus === "ada" ? formatRupiah(ppnNum) : "Rp 0 (Tidak ada PPN)" },
+                    { label: "Nominal Pajak (PPH)", value: String(Math.round(pphTerutang)) },
+                    { label: "Nominal VAT / PPN", value: String(Math.round(state.ppnStatus === "ada" ? ppnNum : 0)) },
                   ].map((item) => (
                     <div
                       key={item.label}
@@ -1319,33 +1319,6 @@ export default function App() {
                     </div>
                   ))}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const paymentRequestText = [
-                        `Harga Barang: ${formatRupiah(dppBarangNum)}`,
-                        `Harga Jasa: ${formatRupiah(dppJasaNum)}`,
-                        `Kode Akun Pajak (PPH): ${state.selectedCode?.kode || "-"}`,
-                        `Nominal Pajak (PPH): ${formatRupiah(pphTerutang)}`,
-                        `Nominal VAT / PPN: ${state.ppnStatus === "ada" ? formatRupiah(ppnNum) : "Rp 0 (Tidak ada PPN)"}`,
-                      ].join("\n");
-                      void navigator.clipboard?.writeText(paymentRequestText);
-                    }}
-                    style={{
-                      width: "100%",
-                      marginTop: 14,
-                      padding: "11px 14px",
-                      borderRadius: 7,
-                      border: "2px solid #1a1a1a",
-                      background: "#1a1a1a",
-                      color: "#fff",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                      fontSize: 13,
-                    }}
-                  >
-                    📋 Copy Semua Data Payment Request
-                  </button>
                 </div>
               </div>
             )}
