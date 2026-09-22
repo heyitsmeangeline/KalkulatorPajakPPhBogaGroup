@@ -1275,6 +1275,26 @@ export default function App() {
                 🖨️ Download Hasil Perhitungan (PDF)
               </button>
               <button
+                type="button"
+                onClick={() => {
+                  window.open(
+                    "https://webapps.boga.co.id/Transactions/PaymentRequest_Input.aspx",
+                    "_blank"
+                  );
+                }}
+                style={{
+                  flex: 1, minWidth: 200,
+                  padding: "14px 24px",
+                  background: "#c8102e", color: "#fff",
+                  border: "2px solid #c8102e", borderRadius: 8,
+                  fontWeight: 800, fontSize: 15, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  fontFamily: "'Nunito', sans-serif",
+                }}
+              >
+                💳 Buat Payment Request
+              </button>
+              <button
                 onClick={handleReset}
                 style={{
                   flex: 1, minWidth: 200,
