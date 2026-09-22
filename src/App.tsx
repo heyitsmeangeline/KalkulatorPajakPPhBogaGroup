@@ -1243,8 +1243,7 @@ export default function App() {
             </div>
 
             {/* Payment Request helper data */}
-            {(
-              <div
+            <div
                 className="no-print"
                 style={{
                   marginTop: 20,
