@@ -1243,7 +1243,7 @@ export default function App() {
             </div>
 
             {/* Payment Request helper data */}
-            {showPaymentRequestData && (
+            {(
               <div
                 className="no-print"
                 style={{
@@ -1321,7 +1321,6 @@ export default function App() {
 
                 </div>
               </div>
-            )}
 
             {/* Action buttons */}
             <div className="no-print" style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
@@ -1360,7 +1359,6 @@ export default function App() {
                 href="https://webapps.boga.co.id/Transactions/PaymentRequest_Input.aspx"
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => setShowPaymentRequestData(true)}
                 style={{
                   flex: 1, minWidth: 200,
                   padding: "14px 24px",
