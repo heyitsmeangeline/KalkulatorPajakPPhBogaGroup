@@ -1383,15 +1383,11 @@ export default function App() {
               >
                 🖨️ Download Hasil Perhitungan (PDF)
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPaymentRequestData(true);
-                  window.open(
-                    "https://webapps.boga.co.id/Transactions/PaymentRequest_Input.aspx",
-                    "_blank"
-                  );
-                }}
+              <a
+                href="https://webapps.boga.co.id/Transactions/PaymentRequest_Input.aspx"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowPaymentRequestData(true)}
                 style={{
                   flex: 1, minWidth: 200,
                   padding: "14px 24px",
@@ -1400,10 +1396,12 @@ export default function App() {
                   fontWeight: 800, fontSize: 15, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   fontFamily: "'Nunito', sans-serif",
+                  textDecoration: "none",
+                  boxSizing: "border-box",
                 }}
               >
                 💳 Buat Payment Request
-              </button>
+              </a>
               <button
                 onClick={handleReset}
                 style={{
