@@ -320,6 +320,7 @@ export default function App() {
   const [saveToHistory, setSaveToHistory] = useState(false);
   const [savingHistory, setSavingHistory] = useState(false);
   const [historySaved, setHistorySaved] = useState(false);
+  const [showPaymentRequestData, setShowPaymentRequestData] = useState(false);
   const [profileName, setProfileName] = useState(() => (user?.user_metadata?.full_name as string | undefined) || user?.email || "Pengguna");
 
   useEffect(() => {
@@ -1241,6 +1242,114 @@ export default function App() {
               )}
             </div>
 
+            {/* Payment Request helper data */}
+            {showPaymentRequestData && (
+              <div
+                className="no-print"
+                style={{
+                  marginTop: 20,
+                  background: "#fff",
+                  border: "2px solid #c8102e",
+                  borderRadius: 10,
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{ background: "#c8102e", color: "#fff", padding: "14px 18px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", opacity: 0.9 }}>
+                    PAYMENT REQUEST
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 900, marginTop: 3 }}>
+                    Data siap dipindahkan ke WebApps
+                  </div>
+                  <div style={{ fontSize: 12, marginTop: 5, opacity: 0.9 }}>
+                    Data di bawah berasal dari hasil perhitungan ini. Tanggal Invoice, No Invoice, Keterangan, dan tarif VAT tetap diisi manual di WebApps.
+                  </div>
+                </div>
+
+                <div style={{ padding: 16 }}>
+                  {[
+                    { label: "Harga Barang", value: formatRupiah(dppBarangNum) },
+                    { label: "Harga Jasa", value: formatRupiah(dppJasaNum) },
+                    { label: "Kode Akun Pajak (PPH)", value: state.selectedCode?.kode || "-" },
+                    { label: "Nominal Pajak (PPH)", value: formatRupiah(pphTerutang) },
+                    { label: "Nominal VAT / PPN", value: state.ppnStatus === "ada" ? formatRupiah(ppnNum) : "Rp 0 (Tidak ada PPN)" },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        padding: "10px 0",
+                        borderBottom: "1px solid #eee",
+                      }}
+                    >
+                      <div style={{ fontSize: 13, color: "#555", fontWeight: 700 }}>{item.label}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div
+                          style={{
+                            minWidth: 150,
+                            textAlign: "right",
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: 13,
+                            fontWeight: 800,
+                            color: "#111",
+                          }}
+                        >
+                          {item.value}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void navigator.clipboard?.writeText(item.value)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #ddd",
+                            background: "#f7f7f7",
+                            color: "#444",
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                          }}
+                        >
+                          📋 Copy
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const paymentRequestText = [
+                        `Harga Barang: ${formatRupiah(dppBarangNum)}`,
+                        `Harga Jasa: ${formatRupiah(dppJasaNum)}`,
+                        `Kode Akun Pajak (PPH): ${state.selectedCode?.kode || "-"}`,
+                        `Nominal Pajak (PPH): ${formatRupiah(pphTerutang)}`,
+                        `Nominal VAT / PPN: ${state.ppnStatus === "ada" ? formatRupiah(ppnNum) : "Rp 0 (Tidak ada PPN)"}`,
+                      ].join("\n");
+                      void navigator.clipboard?.writeText(paymentRequestText);
+                    }}
+                    style={{
+                      width: "100%",
+                      marginTop: 14,
+                      padding: "11px 14px",
+                      borderRadius: 7,
+                      border: "2px solid #1a1a1a",
+                      background: "#1a1a1a",
+                      color: "#fff",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    📋 Copy Semua Data Payment Request
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Action buttons */}
             <div className="no-print" style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
               {saveToHistory && (
@@ -1274,10 +1383,15 @@ export default function App() {
               >
                 🖨️ Download Hasil Perhitungan (PDF)
               </button>
-              <a
-                href="https://webapps.boga.co.id/Transactions/PaymentRequest_Input.aspx"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPaymentRequestData(true);
+                  window.open(
+                    "https://webapps.boga.co.id/Transactions/PaymentRequest_Input.aspx",
+                    "_blank"
+                  );
+                }}
                 style={{
                   flex: 1, minWidth: 200,
                   padding: "14px 24px",
@@ -1286,12 +1400,10 @@ export default function App() {
                   fontWeight: 800, fontSize: 15, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   fontFamily: "'Nunito', sans-serif",
-                  textDecoration: "none",
-                  boxSizing: "border-box",
                 }}
               >
                 💳 Buat Payment Request
-              </a>
+              </button>
               <button
                 onClick={handleReset}
                 style={{
