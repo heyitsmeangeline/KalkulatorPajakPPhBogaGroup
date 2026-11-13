@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import bogaLogo from "./assets/logo-boga.png";
 
 export interface AuthUser {
   id: string;
@@ -396,7 +395,6 @@ function CompleteProfileScreen() {
     <AuthShell>
       <div style={{ width: "100%", maxWidth: 430 }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <img src={bogaLogo} alt="Boga Group" style={{ width: 92, height: "auto", display: "block", margin: "0 auto 14px", objectFit: "contain" }} />
           <div style={{ color: "#c8102e", fontSize: 11, fontWeight: 800, letterSpacing: ".12em", marginTop: 4 }}>KALKULATOR PAJAK</div>
           <h1 style={{ color: "#202020", fontSize: 25, lineHeight: 1.15, margin: "5px 0 0", fontWeight: 900 }}>LENGKAPI DATA AKUN</h1>
           <p style={{ color: "#666", fontSize: 13, margin: "8px 0 0" }}>Lengkapi NIK Boga kamu sebelum menggunakan kalkulator.</p>
@@ -480,9 +478,8 @@ function AuthScreen() {
     <AuthShell>
       <div style={{ width: "100%", maxWidth: 430 }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <img src={bogaLogo} alt="Boga Group" style={{ width: 92, height: "auto", display: "block", margin: "0 auto 14px", objectFit: "contain" }} />
           <div style={{ color: "#c8102e", fontSize: 11, fontWeight: 800, letterSpacing: ".12em", marginTop: 4 }}>KALKULATOR PAJAK</div>
-          <h1 style={{ color: "#202020", fontSize: 25, lineHeight: 1.15, margin: "5px 0 0", fontWeight: 900 }}>PERHITUNGAN PAJAK BOGA GROUP</h1>
+          <h1 style={{ color: "#202020", fontSize: 25, lineHeight: 1.15, margin: "5px 0 0", fontWeight: 900 }}>Selamat Datang</h1>
           <p style={{ color: "#666", fontSize: 13, margin: "8px 0 0" }}>Login diperlukan sebelum menggunakan kalkulator.</p>
         </div>
 
